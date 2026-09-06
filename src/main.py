@@ -12,6 +12,7 @@ from .cleaner import (
     eligible_trash_candidates,
     trash_verified_files,
 )
+from . import __version__
 from .config import ensure_runtime_dirs, load_config
 from .downloader import DownloadResult, download_drive_file
 from .drive_client import DriveClient, FileMetadata, parse_drive_size
@@ -26,6 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--credentials", help="Path to Google OAuth Desktop credentials JSON.")
     parser.add_argument("--token", help="Path to local OAuth token JSON.")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -47,8 +49,37 @@ def build_parser() -> argparse.ArgumentParser:
 
 def add_common_scan_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--include-images", action="store_true", help="Include image/* files as well as videos.")
-    parser.add_argument("--min-size-mb", type=float, default=500, help="Minimum Drive file size in MB.")
-    parser.add_argument("--limit", type=int, help="Maximum number of matching files to process.")
+    parser.add_argument(
+        "--min-size-mb",
+        type=non_negative_float,
+        default=500,
+        help="Minimum Drive file size in MB.",
+    )
+    parser.add_argument(
+        "--limit",
+        type=positive_int,
+        help="Maximum number of matching files to process.",
+    )
+
+
+def positive_int(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected an integer, got {value!r}")
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer (>= 1)")
+    return number
+
+
+def non_negative_float(value: str) -> float:
+    try:
+        number = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected a number, got {value!r}")
+    if number < 0:
+        raise argparse.ArgumentTypeError("must not be negative")
+    return number
 
 
 def configure_logging(log_dir: Path) -> Path:
@@ -127,7 +158,11 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 def with_default_scan_command(raw_args: List[str]) -> List[str]:
     command_names = {"scan", "download"}
-    if not raw_args or any(arg in command_names for arg in raw_args) or any(arg in {"-h", "--help"} for arg in raw_args):
+    if (
+        not raw_args
+        or any(arg in command_names for arg in raw_args)
+        or any(arg in {"-h", "--help", "--version"} for arg in raw_args)
+    ):
         return raw_args or ["scan"]
 
     prefix: List[str] = []

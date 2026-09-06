@@ -13,3 +13,6 @@ dist/
 build/
 credentials.json
 token.json
+downloads/
+reports/
+logs/

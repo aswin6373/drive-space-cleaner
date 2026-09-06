@@ -11,6 +11,9 @@ This project uses the official Google Drive API Python client, OAuth desktop log
 - The tool only moves verified Drive files to Google Drive Trash.
 - Trashing requires `--trash-after-download` and the exact typed confirmation `YES_TRASH_VERIFIED_FILES`.
 - Downloaded files must exist locally and match the Drive-reported size before they are eligible for trashing.
+- Downloads are written to a temporary `.part` file first and renamed only after size verification, so a partial download can never be mistaken for a verified file.
+- `token.json` is stored with owner-only permissions (`0600`) because it contains a refresh secret.
+- If a stored token has expired or been revoked, the tool re-authenticates automatically instead of failing until you delete `token.json`.
 - Google Docs, Sheets, and Slides export files are not processed.
 - By default, only videos are scanned. Images are included only with `--include-images`.
 - Every run writes logs to `logs/drive-space-cleaner-agent.log`.
@@ -25,6 +28,7 @@ drive-space-cleaner-agent/
 ├── .gitignore
 ├── credentials.example.json
 ├── src/
+│   ├── __init__.py
 │   ├── main.py
 │   ├── auth.py
 │   ├── drive_client.py
@@ -34,6 +38,8 @@ drive-space-cleaner-agent/
 │   ├── cleaner.py
 │   ├── report.py
 │   └── config.py
+├── tests/
+│   └── test_all.py
 ├── downloads/
 │   └── .gitkeep
 └── reports/
@@ -77,7 +83,13 @@ pip install -r requirements.txt
 
 ## Usage
 
-The first run opens a browser window for Google OAuth login and stores `token.json` locally.
+The first run opens a browser window for Google OAuth login and stores `token.json` locally with owner-only permissions. If the stored token later expires or is revoked, the login flow runs again automatically.
+
+Check the installed version:
+
+```bash
+python -m src.main --version
+```
 
 Scan videos larger than 500 MB:
 
@@ -180,8 +192,17 @@ The tool logs the error and does not trash that Drive file. Re-run the command a
 
 **Need to re-authenticate**
 
-Delete `token.json` and run a command again. Keep `credentials.json`.
+The tool now handles expired and revoked tokens automatically. If the login flow is still blocked, delete `token.json` and run a command again. Keep `credentials.json`.
 
 ## Notes
 
 This is a normal automation CLI, not an AI agent. It does not use an LLM. It relies on Drive metadata, local file checks, and explicit user confirmation.
+
+## Testing
+
+The project ships with a unit and integration test suite that mocks Google Drive, so no network access or credentials are required:
+
+```bash
+source .venv/bin/activate
+python -m unittest discover -s tests -v
+```

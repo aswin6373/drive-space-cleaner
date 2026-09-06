@@ -4,7 +4,7 @@ import csv
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Mapping, Sequence
+from typing import List, Mapping, Sequence
 
 from .drive_client import FileMetadata, parse_drive_size, total_size
 

@@ -36,8 +36,9 @@ def safe_filename(name: str) -> str:
     cleaned = re.sub(r"\s+", " ", cleaned)
     if not cleaned:
         cleaned = "unnamed"
-    if cleaned.upper() in WINDOWS_RESERVED_NAMES:
-        cleaned = f"{cleaned}_file"
+    stem, sep, rest = cleaned.partition(".")
+    if stem.upper() in WINDOWS_RESERVED_NAMES:
+        cleaned = f"{stem}_file{sep}{rest}"
     return cleaned[:180]
 
 
@@ -114,11 +115,18 @@ def download_drive_file(
             verification=VerificationResult(False, "Dry run: not downloaded"),
         )
 
+    temp_destination = destination.with_name(f"{destination.name}.part")
+
     try:
-        client.download_file(str(file_metadata["id"]), destination, expected_size)
-        verification = verify_download(destination, expected_size)
+        if temp_destination.exists():
+            temp_destination.unlink()
+        client.download_file(str(file_metadata["id"]), temp_destination, expected_size)
+        verification = verify_download(temp_destination, expected_size)
         if verification.verified:
+            temp_destination.replace(destination)
             write_sidecar_metadata(destination, file_metadata, verification)
+        else:
+            temp_destination.unlink(missing_ok=True)
         return DownloadResult(
             file=file_metadata,
             local_path=destination,
@@ -127,6 +135,8 @@ def download_drive_file(
             verification=verification,
         )
     except Exception as exc:  # noqa: BLE001 - CLI must fail closed per file
+        if temp_destination.exists():
+            temp_destination.unlink(missing_ok=True)
         if destination.exists():
             destination.unlink(missing_ok=True)
         return DownloadResult(
